@@ -17,8 +17,8 @@ abstract class Task : Runnable {
         return "Task${serializeNum.getAndIncrement()}"
     }
 
-    open fun getDepends(): Array<String> {
-        return arrayOf()
+    open fun getDepends(): Set<String> {
+        return setOf()
     }
 
     open fun getPriority(): Priority {

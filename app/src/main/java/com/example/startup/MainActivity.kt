@@ -36,8 +36,8 @@ class MainActivity : AppCompatActivity() {
                 return "tttt2"
             }
 
-            override fun getDepends(): Array<String> {
-                return arrayOf("tttt1")
+            override fun getDepends(): Set<String> {
+                return setOf("tttt1")
             }
 
         }
@@ -51,8 +51,8 @@ class MainActivity : AppCompatActivity() {
                 return "tttt3"
             }
 
-            override fun getDepends(): Array<String> {
-                return arrayOf("tttt2","tttt1")
+            override fun getDepends(): Set<String> {
+                return setOf("tttt2","tttt1")
             }
 
         }

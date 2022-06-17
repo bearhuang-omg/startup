@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentLinkedDeque
 
 class TaskDirector {
     companion object {
-        val TAG = "TaskExecutor"
+        val TAG = "TaskDirector"
     }
 
     private val taskMap = HashMap<String, TaskNode>()
@@ -46,18 +46,19 @@ class TaskDirector {
     private fun runAfter(name: String) {
         handler.post {
             finishedTasks++
+            if (taskMap.containsKey(name) && taskMap[name]!!.next.isNotEmpty()) {
+                taskMap[name]!!.next.forEach { taskNode ->
+                    taskNode.start()
+                }
+                taskMap.remove(name)
+            }
+            Log.i(TAG,"finished task:${name},tasksum:${taskSum},finishedTasks:${finishedTasks}")
             if (finishedTasks == taskSum) {
                 endTime = System.currentTimeMillis()
                 Log.i(TAG, "finished All task , time:${endTime - startTime}")
                 afterList.forEach { after ->
                     after()
                 }
-            }
-            if (taskMap.containsKey(name) && taskMap[name]!!.next.isNotEmpty()) {
-                taskMap[name]!!.next.forEach { taskNode ->
-                    taskNode.start()
-                }
-                taskMap.remove(name)
             }
         }
     }
@@ -84,16 +85,18 @@ class TaskDirector {
      */
     private fun constructGrapic(): Boolean {
         taskMap.forEach { entry ->
-            val depends = entry.value.task.getDepends()
-            if (depends.isEmpty()) { //不依赖，直接加入到根结点
-                rootNode.next.add(entry.value)
-            } else { //依赖，则加入到对应节点的子节点
-                depends.forEach { depend ->
-                    if (!taskMap.containsKey(depend)) {
-                        Log.i(TAG, "can not find the task ${depend}")
-                        return false
+            if (!ROOTNODE.equals(entry.key)) {
+                val depends = entry.value.task.getDepends()
+                if (depends.isEmpty()) { //不依赖，直接加入到根结点
+                    rootNode.next.add(entry.value)
+                } else { //依赖，则加入到对应节点的子节点
+                    depends.forEach { depend ->
+                        if (!taskMap.containsKey(depend)) {
+                            Log.i(TAG, "can not find the task ${depend}")
+                            return false
+                        }
+                        taskMap[depend]!!.next.add(entry.value)
                     }
-                    taskMap[depend]!!.next.add(entry.value)
                 }
             }
         }
@@ -104,13 +107,13 @@ class TaskDirector {
      * 检查任务图中是否有环
      */
     private fun checkCycle(): Boolean {
-        val tempQueue = ConcurrentLinkedDeque<TaskNode>()
+        val tempQueue = ConcurrentLinkedDeque<TaskNode>() //记录当前已经ready的任务
         tempQueue.offer(rootNode)
-        val tempMap = HashMap<String, TaskNode>()
-        taskMap[ROOTNODE] = rootNode
-        taskSum = taskMap.size
+        val tempMap = HashMap<String, TaskNode>() //当前所有的任务
+        val dependsMap = HashMap<String, Int>() //所有任务所依赖的任务数量
         taskMap.forEach {
             tempMap[it.key] = it.value
+            dependsMap[it.key] = it.value.task.getDepends().size
         }
         while (tempQueue.isNotEmpty()) {
             val node = tempQueue.poll()
@@ -121,7 +124,14 @@ class TaskDirector {
             tempMap.remove(node.key)
             if (node.next.isNotEmpty()) {
                 node.next.forEach {
-                    tempQueue.offer(it)
+                    if (dependsMap.containsKey(it.key)) {
+                        var dependsCount = dependsMap[it.key]!!
+                        dependsCount -= 1
+                        dependsMap[it.key] = dependsCount
+                        if (dependsCount <= 0) {
+                            tempQueue.offer(it)
+                        }
+                    }
                 }
             }
         }
@@ -141,6 +151,7 @@ class TaskDirector {
     }
 
     fun start(): Boolean {
+        prepare()
         if (!constructGrapic()) {
             Log.i(TAG, "constructGrapic error!")
             return false
@@ -149,12 +160,17 @@ class TaskDirector {
             Log.i(TAG, "check cycle error!")
             return false
         }
-        startTime = System.currentTimeMillis()
         runBefore()
         handler.post {
             rootNode.start()
         }
         return true
+    }
+
+    fun prepare() {
+        taskMap[ROOTNODE] = rootNode
+        taskSum = taskMap.size
+        startTime = System.currentTimeMillis()
     }
 
     fun clear() {
