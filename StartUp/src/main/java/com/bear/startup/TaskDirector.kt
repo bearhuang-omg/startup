@@ -10,8 +10,9 @@ class TaskDirector {
         val TAG = "TaskDirector"
     }
 
-    private val taskMap = HashMap<String, TaskNode>()
     private val ROOTNODE = "TASK_DIRECTOR_ROOTNODE"
+    private val WHOLE_TASK = "whole_task"
+    private val taskMap = HashMap<String, TaskNode>()
     private val rootNode by lazy {
         val task = object : Task() {
 
@@ -23,7 +24,7 @@ class TaskDirector {
                 return ROOTNODE
             }
         }
-        task.addAfter(after)
+        task.addAfter(taskAfter)
         TaskNode(task)
     }
     private val handlerThread = HandlerThread(TAG)
@@ -34,29 +35,49 @@ class TaskDirector {
 
     private var finishedTasks = 0
     private var taskSum = 0
-    private var startTime: Long = 0
-    private var endTime: Long = 0
-    private val beforeList = HashSet<() -> Unit>()
-    private val afterList = HashSet<() -> Unit>()
+    private val directorBeforeList = HashSet<() -> Unit>() //所有任务执行前回调
+    private val directorAfterList = HashSet<() -> Unit>() //所有任务执行后回调
+    private val timeMonitor = HashMap<String,Long>()
 
-    private val after = { name: String ->
-        runAfter(name)
+    //单个任务执行前回调
+    private val taskBefore = { name: String ->
+        runTaskBefore(name)
     }
 
-    private fun runAfter(name: String) {
+    private fun runTaskBefore(name: String) {
+        handler.post {
+            timeMonitor[name] = System.currentTimeMillis()
+        }
+    }
+
+    //单个任务执行后回调
+    private val taskAfter = { name: String ->
+        runTaskAfter(name)
+    }
+
+    private fun runTaskAfter(name: String) {
         handler.post {
             finishedTasks++
+            //记录任务执行的时间
+            if (timeMonitor.containsKey(name)) {
+                timeMonitor[name] = System.currentTimeMillis() - timeMonitor[name]!!
+            }
+            //单个任务执行完成之后，触发下一个任务执行
             if (taskMap.containsKey(name) && taskMap[name]!!.next.isNotEmpty()) {
                 taskMap[name]!!.next.forEach { taskNode ->
                     taskNode.start()
                 }
                 taskMap.remove(name)
             }
-            Log.i(TAG,"finished task:${name},tasksum:${taskSum},finishedTasks:${finishedTasks}")
+            Log.i(TAG, "finished task:${name},tasksum:${taskSum},finishedTasks:${finishedTasks}")
+            //所有任务执行完成之后，触发director回调
             if (finishedTasks == taskSum) {
-                endTime = System.currentTimeMillis()
-                Log.i(TAG, "finished All task , time:${endTime - startTime}")
-                afterList.forEach { after ->
+                val endTime = System.currentTimeMillis()
+                if (timeMonitor.containsKey(WHOLE_TASK)) {
+                    timeMonitor[WHOLE_TASK] = endTime - timeMonitor[WHOLE_TASK]!!
+                }
+                Log.i(TAG, "finished All task , time:${timeMonitor}")
+                directorAfterList.forEach { after ->
                     after()
                 }
             }
@@ -65,7 +86,7 @@ class TaskDirector {
 
     private fun runBefore() {
         handler.post {
-            beforeList.forEach { before ->
+            directorBeforeList.forEach { before ->
                 before()
             }
         }
@@ -76,7 +97,8 @@ class TaskDirector {
             Log.i(TAG, "already has the task ${task.getName()}")
             return
         }
-        task.addAfter(after)
+        task.addBefore(taskBefore)
+        task.addAfter(taskAfter)
         taskMap[task.getName()] = TaskNode(task)
     }
 
@@ -143,11 +165,11 @@ class TaskDirector {
     }
 
     fun addBefore(block: () -> Unit) {
-        beforeList.add(block)
+        directorBeforeList.add(block)
     }
 
     fun addAfter(block: () -> Unit) {
-        afterList.add(block)
+        directorAfterList.add(block)
     }
 
     fun start(): Boolean {
@@ -170,15 +192,15 @@ class TaskDirector {
     fun prepare() {
         taskMap[ROOTNODE] = rootNode
         taskSum = taskMap.size
-        startTime = System.currentTimeMillis()
+        timeMonitor.clear()
+        timeMonitor[WHOLE_TASK] = System.currentTimeMillis()
     }
 
     fun clear() {
-        startTime = 0
-        endTime = 0
         taskMap.clear()
         rootNode.next.clear()
-        beforeList.clear()
-        afterList.clear()
+        directorBeforeList.clear()
+        directorAfterList.clear()
+        timeMonitor.clear()
     }
 }
