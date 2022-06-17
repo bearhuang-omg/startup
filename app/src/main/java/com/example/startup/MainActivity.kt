@@ -64,11 +64,6 @@ class MainActivity : AppCompatActivity() {
 
         taskBtn.setOnClickListener {
             val director = TaskDirector()
-            director.apply {
-                addTask(task1)
-                addTask(task2)
-                addTask(task3)
-            }
             director.registerListener(object : IDirectorListener{
                 override fun onStart() {
                     Log.i(TAG,"director start")
@@ -81,8 +76,12 @@ class MainActivity : AppCompatActivity() {
                 override fun onError(code: Int, msg: String) {
                     Log.i(TAG,"errorCode:${code},msg:${msg}")
                 }
-
             })
+            director.apply {
+                addTask(task1)
+                addTask(task2)
+                addTask(task3)
+            }
             director.start()
         }
     }

@@ -171,7 +171,7 @@ class TaskDirector {
         if (tempMap.isNotEmpty()) {
             Log.i(TAG, "has cycle,tasks:${tempMap.keys}")
             directorListener.forEach {
-                it.onError(Constant.HASH_CYCLE, "HAS CYCLE! ${tempMap.keys}")
+                it.onError(Constant.HASH_CYCLE, "SEPERATE FROM THE ROOT! ${tempMap.keys}")
             }
             return false
         }
