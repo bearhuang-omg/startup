@@ -11,7 +11,7 @@ class TaskDirector {
     }
 
     private val taskMap = HashMap<String, TaskNode>()
-    private val ROOTNODE = "ROOTNODE"
+    private val ROOTNODE = "TASK_DIRECTOR_ROOTNODE"
     private val rootNode by lazy {
         val task = object : Task() {
 
