@@ -24,7 +24,7 @@ class TaskDirector {
                 return ROOTNODE
             }
         }
-        task.addAfter(taskAfter)
+        task.registerTaskAfter(taskAfter)
         TaskNode(task)
     }
     private val handlerThread = HandlerThread(TAG)
@@ -37,7 +37,7 @@ class TaskDirector {
     private var taskSum = 0
     private val directorBeforeList = HashSet<() -> Unit>() //所有任务执行前回调
     private val directorAfterList = HashSet<() -> Unit>() //所有任务执行后回调
-    private val timeMonitor = HashMap<String,Long>()
+    private val timeMonitor = HashMap<String, Long>()
 
     //单个任务执行前回调
     private val taskBefore = { name: String ->
@@ -80,26 +80,26 @@ class TaskDirector {
                 directorAfterList.forEach { after ->
                     after()
                 }
+                directorAfterList.clear()
             }
         }
     }
 
-    private fun runBefore() {
+    //所有任务开始执行前的监听回调
+    private fun runDirectorBefore() {
         handler.post {
             directorBeforeList.forEach { before ->
                 before()
             }
+            directorBeforeList.clear()
         }
     }
 
-    fun addTask(task: Task) {
-        if (taskMap.containsKey(task.getName())) {
-            Log.i(TAG, "already has the task ${task.getName()}")
-            return
-        }
-        task.addBefore(taskBefore)
-        task.addAfter(taskAfter)
-        taskMap[task.getName()] = TaskNode(task)
+    private fun prepare() {
+        taskMap[ROOTNODE] = rootNode
+        taskSum = taskMap.size
+        timeMonitor.clear()
+        timeMonitor[WHOLE_TASK] = System.currentTimeMillis()
     }
 
     /**
@@ -164,12 +164,31 @@ class TaskDirector {
         return true
     }
 
-    fun addBefore(block: () -> Unit) {
+    fun registerDirectorBefore(block: () -> Unit) {
         directorBeforeList.add(block)
     }
 
-    fun addAfter(block: () -> Unit) {
+    fun unRegisterDirectorBefore(block: () -> Unit) {
+        directorBeforeList.remove(block)
+    }
+
+    fun registerDirectorAfter(block: () -> Unit) {
         directorAfterList.add(block)
+    }
+
+    fun unRegisterDirectorAfter(block: () -> Unit) {
+        directorAfterList.remove(block)
+    }
+
+    fun addTask(task: Task): TaskDirector {
+        if (!taskMap.containsKey(task.getName())) {
+            task.registerTaskBefore(taskBefore)
+            task.registerTaskAfter(taskAfter)
+            taskMap[task.getName()] = TaskNode(task)
+        } else {
+            Log.i(TAG, "already has the task ${task.getName()}")
+        }
+        return this
     }
 
     fun start(): Boolean {
@@ -182,18 +201,11 @@ class TaskDirector {
             Log.i(TAG, "check cycle error!")
             return false
         }
-        runBefore()
+        runDirectorBefore()
         handler.post {
             rootNode.start()
         }
         return true
-    }
-
-    fun prepare() {
-        taskMap[ROOTNODE] = rootNode
-        taskSum = taskMap.size
-        timeMonitor.clear()
-        timeMonitor[WHOLE_TASK] = System.currentTimeMillis()
     }
 
     fun clear() {

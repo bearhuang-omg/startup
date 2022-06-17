@@ -37,19 +37,19 @@ abstract class Task : Runnable {
         Log.i(TAG,"end ${getName()}")
     }
 
-    fun addBefore(block: (String) -> Unit) {
+    fun registerTaskBefore(block: (String) -> Unit) {
         before.add(block)
     }
 
-    fun removeBefore(block: (String) -> Unit) {
+    fun unRegisterTaskBefore(block: (String) -> Unit) {
         before.remove(block)
     }
 
-    fun addAfter(block: (String) -> Unit) {
+    fun registerTaskAfter(block: (String) -> Unit) {
         after.add(block)
     }
 
-    fun removeAfter(block: (String) -> Unit) {
+    fun unRegisterTaskAfter(block: (String) -> Unit) {
         after.remove(block)
     }
 
