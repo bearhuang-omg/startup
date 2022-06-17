@@ -2,11 +2,15 @@ package com.example.startup
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
+import com.bear.startup.IDirectorListener
 import com.bear.startup.Task
 import com.bear.startup.TaskDirector
 
 class MainActivity : AppCompatActivity() {
+
+    val TAG = "MMMMM"
 
     val taskBtn:Button by lazy {
         findViewById(R.id.task_btn)
@@ -65,6 +69,20 @@ class MainActivity : AppCompatActivity() {
                 addTask(task2)
                 addTask(task3)
             }
+            director.registerListener(object : IDirectorListener{
+                override fun onStart() {
+                    Log.i(TAG,"director start")
+                }
+
+                override fun onFinished(time: Long) {
+                    Log.i(TAG,"director finished with time ${time}")
+                }
+
+                override fun onError(code: Int, msg: String) {
+                    Log.i(TAG,"errorCode:${code},msg:${msg}")
+                }
+
+            })
             director.start()
         }
     }

@@ -35,8 +35,8 @@ class TaskDirector {
 
     private var finishedTasks = 0
     private var taskSum = 0
-    private val directorBeforeList = HashSet<() -> Unit>() //所有任务执行前回调
-    private val directorAfterList = HashSet<() -> Unit>() //所有任务执行后回调
+    private var isStart = false
+    private val directorListener = HashSet<IDirectorListener>() // director生命周期监听
     private val timeMonitor = HashMap<String, Long>()
 
     //单个任务执行前回调
@@ -77,23 +77,25 @@ class TaskDirector {
                     timeMonitor[WHOLE_TASK] = endTime - timeMonitor[WHOLE_TASK]!!
                 }
                 Log.i(TAG, "finished All task , time:${timeMonitor}")
-                directorAfterList.forEach { after ->
-                    after()
-                }
-                directorAfterList.clear()
+                runDirectorAfter()
             }
         }
     }
 
     //所有任务开始执行前的监听回调
     private fun runDirectorBefore() {
-        handler.post {
-            directorBeforeList.forEach { before ->
-                before()
-            }
-            directorBeforeList.clear()
+        directorListener.forEach {
+            it.onStart()
         }
     }
+
+    private fun runDirectorAfter() {
+        directorListener.forEach {
+            it.onFinished(timeMonitor[WHOLE_TASK] ?: 0)
+        }
+        directorListener.clear()
+    }
+
 
     private fun prepare() {
         taskMap[ROOTNODE] = rootNode
@@ -115,6 +117,9 @@ class TaskDirector {
                     depends.forEach { depend ->
                         if (!taskMap.containsKey(depend)) {
                             Log.i(TAG, "can not find the task ${depend}")
+                            directorListener.forEach {
+                                it.onError(Constant.CANNOT_FIND_TASK,"NOT FIND THE TASK ! ${depend}")
+                            }
                             return false
                         }
                         taskMap[depend]!!.next.add(entry.value)
@@ -141,6 +146,9 @@ class TaskDirector {
             val node = tempQueue.poll()
             if (!tempMap.containsKey(node.key)) {
                 Log.i(TAG, "task has cycle ${node.key}")
+                directorListener.forEach {
+                    it.onError(Constant.HASH_CYCLE,"TASK HAS CYCLE! ${node.key}")
+                }
                 return false
             }
             tempMap.remove(node.key)
@@ -158,26 +166,21 @@ class TaskDirector {
             }
         }
         if (tempMap.isNotEmpty()) {
-            Log.i(TAG, "seperate from Root task,tasks:${tempMap.keys}")
+            Log.i(TAG, "has cycle,tasks:${tempMap.keys}")
+            directorListener.forEach {
+                it.onError(Constant.HASH_CYCLE,"HAS CYCLE! ${tempMap.keys}")
+            }
             return false
         }
         return true
     }
 
-    fun registerDirectorBefore(block: () -> Unit) {
-        directorBeforeList.add(block)
+    fun registerListener(listener: IDirectorListener) {
+        directorListener.add(listener)
     }
 
-    fun unRegisterDirectorBefore(block: () -> Unit) {
-        directorBeforeList.remove(block)
-    }
-
-    fun registerDirectorAfter(block: () -> Unit) {
-        directorAfterList.add(block)
-    }
-
-    fun unRegisterDirectorAfter(block: () -> Unit) {
-        directorAfterList.remove(block)
+    fun unRegisterListener(listener: IDirectorListener) {
+        directorListener.remove(listener)
     }
 
     fun addTask(task: Task): TaskDirector {
@@ -191,28 +194,32 @@ class TaskDirector {
         return this
     }
 
-    fun start(): Boolean {
-        prepare()
-        if (!constructGrapic()) {
-            Log.i(TAG, "constructGrapic error!")
-            return false
-        }
-        if (!checkCycle()) {
-            Log.i(TAG, "check cycle error!")
-            return false
-        }
-        runDirectorBefore()
+    fun start() {
         handler.post {
+            if (isStart) {
+                return@post
+            }
+            isStart = true
+            prepare()
+            if (!constructGrapic()) {
+                Log.i(TAG, "constructGrapic error!")
+                return@post
+            }
+            if (!checkCycle()) {
+                Log.i(TAG, "check cycle error!")
+                return@post
+            }
+            runDirectorBefore()
             rootNode.start()
         }
-        return true
     }
 
     fun clear() {
-        taskMap.clear()
-        rootNode.next.clear()
-        directorBeforeList.clear()
-        directorAfterList.clear()
-        timeMonitor.clear()
+        handler.post {
+            taskMap.clear()
+            rootNode.next.clear()
+            directorListener.clear()
+            timeMonitor.clear()
+        }
     }
 }
