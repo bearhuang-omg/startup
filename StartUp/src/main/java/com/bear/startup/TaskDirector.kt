@@ -118,7 +118,10 @@ class TaskDirector {
                         if (!taskMap.containsKey(depend)) {
                             Log.i(TAG, "can not find the task ${depend}")
                             directorListener.forEach {
-                                it.onError(Constant.CANNOT_FIND_TASK,"NOT FIND THE TASK ! ${depend}")
+                                it.onError(
+                                    Constant.CANNOT_FIND_TASK,
+                                    "NOT FIND THE TASK ! ${depend}"
+                                )
                             }
                             return false
                         }
@@ -147,7 +150,7 @@ class TaskDirector {
             if (!tempMap.containsKey(node.key)) {
                 Log.i(TAG, "task has cycle ${node.key}")
                 directorListener.forEach {
-                    it.onError(Constant.HASH_CYCLE,"TASK HAS CYCLE! ${node.key}")
+                    it.onError(Constant.HASH_CYCLE, "TASK HAS CYCLE! ${node.key}")
                 }
                 return false
             }
@@ -168,7 +171,7 @@ class TaskDirector {
         if (tempMap.isNotEmpty()) {
             Log.i(TAG, "has cycle,tasks:${tempMap.keys}")
             directorListener.forEach {
-                it.onError(Constant.HASH_CYCLE,"HAS CYCLE! ${tempMap.keys}")
+                it.onError(Constant.HASH_CYCLE, "HAS CYCLE! ${tempMap.keys}")
             }
             return false
         }
@@ -190,6 +193,9 @@ class TaskDirector {
             taskMap[task.getName()] = TaskNode(task)
         } else {
             Log.i(TAG, "already has the task ${task.getName()}")
+            directorListener.forEach {
+                it.onError(Constant.REPEATE_TASK_NAME, "REPEATED TASK NAME :${task.getName()}")
+            }
         }
         return this
     }
