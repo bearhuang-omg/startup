@@ -15,7 +15,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        val director = TaskDirector()
 
         val task1 = object:Task() {
             override fun execute() {
@@ -53,13 +52,14 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun getDepends(): Array<String> {
-                return arrayOf("tttt2")
+                return arrayOf("tttt2","tttt1")
             }
 
         }
 
 
         taskBtn.setOnClickListener {
+            val director = TaskDirector()
             director.apply {
                 addTask(task1)
                 addTask(task2)

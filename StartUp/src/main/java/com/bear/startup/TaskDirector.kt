@@ -9,6 +9,7 @@ class TaskDirector {
     companion object {
         val TAG = "TaskExecutor"
     }
+
     private val taskMap = HashMap<String, TaskNode>()
     private val ROOTNODE = "ROOTNODE"
     private val rootNode by lazy {
@@ -23,7 +24,6 @@ class TaskDirector {
             }
         }
         task.addAfter(after)
-        task.addBefore(before)
         TaskNode(task)
     }
     private val handlerThread = HandlerThread(TAG)
@@ -34,12 +34,10 @@ class TaskDirector {
 
     private var finishedTasks = 0
     private var taskSum = 0
-    private var startTime:Long = 0
-    private var endTime:Long = 0
-
-    private val before = { name: String ->
-
-    }
+    private var startTime: Long = 0
+    private var endTime: Long = 0
+    private val beforeList = HashSet<() -> Unit>()
+    private val afterList = HashSet<() -> Unit>()
 
     private val after = { name: String ->
         runAfter(name)
@@ -51,6 +49,9 @@ class TaskDirector {
             if (finishedTasks == taskSum) {
                 endTime = System.currentTimeMillis()
                 Log.i(TAG, "finished All task , time:${endTime - startTime}")
+                afterList.forEach { after ->
+                    after()
+                }
             }
             if (taskMap.containsKey(name) && taskMap[name]!!.next.isNotEmpty()) {
                 taskMap[name]!!.next.forEach { taskNode ->
@@ -61,13 +62,19 @@ class TaskDirector {
         }
     }
 
+    private fun runBefore() {
+        handler.post {
+            beforeList.forEach { before ->
+                before()
+            }
+        }
+    }
 
     fun addTask(task: Task) {
-        if (taskMap.containsKey(task.getName())){
-            Log.i(TAG,"already has the task ${task.getName()}")
+        if (taskMap.containsKey(task.getName())) {
+            Log.i(TAG, "already has the task ${task.getName()}")
             return
         }
-        task.addBefore(before)
         task.addAfter(after)
         taskMap[task.getName()] = TaskNode(task)
     }
@@ -99,7 +106,7 @@ class TaskDirector {
     private fun checkCycle(): Boolean {
         val tempQueue = ConcurrentLinkedDeque<TaskNode>()
         tempQueue.offer(rootNode)
-        val tempMap = HashMap<String,TaskNode>()
+        val tempMap = HashMap<String, TaskNode>()
         taskMap[ROOTNODE] = rootNode
         taskSum = taskMap.size
         taskMap.forEach {
@@ -118,9 +125,20 @@ class TaskDirector {
                 }
             }
         }
+        if (tempMap.isNotEmpty()) {
+            Log.i(TAG, "seperate from Root task,tasks:${tempMap.keys}")
+            return false
+        }
         return true
     }
 
+    fun addBefore(block: () -> Unit) {
+        beforeList.add(block)
+    }
+
+    fun addAfter(block: () -> Unit) {
+        afterList.add(block)
+    }
 
     fun start(): Boolean {
         if (!constructGrapic()) {
@@ -132,7 +150,19 @@ class TaskDirector {
             return false
         }
         startTime = System.currentTimeMillis()
-        rootNode.start()
+        runBefore()
+        handler.post {
+            rootNode.start()
+        }
         return true
+    }
+
+    fun clear() {
+        startTime = 0
+        endTime = 0
+        taskMap.clear()
+        rootNode.next.clear()
+        beforeList.clear()
+        afterList.clear()
     }
 }
