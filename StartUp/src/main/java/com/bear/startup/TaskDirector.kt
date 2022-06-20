@@ -35,9 +35,10 @@ class TaskDirector {
 
     private var finishedTasks = 0
     private var taskSum = 0
+    @Volatile
     private var isStart = false
     private val directorListener = HashSet<IDirectorListener>() // director生命周期监听
-    private val timeMonitor = HashMap<String, Long>()
+    private val timeMonitor = HashMap<String, Long>() //任务执行时间监听
 
     //单个任务执行前回调
     private val taskBefore = { name: String ->
@@ -179,24 +180,41 @@ class TaskDirector {
     }
 
     fun registerListener(listener: IDirectorListener) {
-        directorListener.add(listener)
+        handler.post {
+            directorListener.add(listener)
+        }
     }
 
     fun unRegisterListener(listener: IDirectorListener) {
-        directorListener.remove(listener)
+        handler.post {
+            directorListener.remove(listener)
+        }
     }
 
     fun addTask(task: Task): TaskDirector {
-        if (!taskMap.containsKey(task.getName())) {
-            task.registerTaskBefore(taskBefore)
-            task.registerTaskAfter(taskAfter)
-            taskMap[task.getName()] = TaskNode(task)
-        } else {
-            Log.i(TAG, "already has the task ${task.getName()}")
-            directorListener.forEach {
-                it.onError(Constant.REPEATE_TASK_NAME, "REPEATED TASK NAME :${task.getName()}")
+        handler.post {
+            if (isStart) {
+                Log.i(TAG, "TaskDirector has started!")
+                directorListener.forEach {
+                    it.onError(
+                        Constant.TASKDIRECTOR_STARTED,
+                        "TaskDirector has started,add task ${task.getName()} failed!"
+                    )
+                }
+                return@post
+            }
+            if (!taskMap.containsKey(task.getName())) {
+                task.registerTaskBefore(taskBefore)
+                task.registerTaskAfter(taskAfter)
+                taskMap[task.getName()] = TaskNode(task)
+            } else {
+                Log.i(TAG, "already has the task ${task.getName()}")
+                directorListener.forEach {
+                    it.onError(Constant.REPEATE_TASK_NAME, "REPEATED TASK NAME :${task.getName()}")
+                }
             }
         }
+
         return this
     }
 
